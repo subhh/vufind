@@ -683,9 +683,9 @@ class DefaultRecord extends AbstractBase
         $formats = $this->getFormats();
         if (in_array('Book', $formats)) {
             return 'Book';
-        } elseif (in_array('Article', $formats)) {
+        } elseif (in_array('Article', $formats) || in_array('electronic Article', $formats)) {
             return 'Article';
-        } elseif (in_array('Journal', $formats)) {
+        } elseif (in_array('Journal', $formats) || in_array('eJournal', $formats)) {
             return 'Journal';
         } elseif (isset($formats[0])) {
             return $formats[0];
