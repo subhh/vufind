@@ -683,9 +683,9 @@ class DefaultRecord extends AbstractBase
         $formats = $this->getFormats();
         if (in_array('Book', $formats)) {
             return 'Book';
-        } elseif (in_array('Article', $formats)) {
+        } elseif (in_array('Article', $formats) || in_array('electronic Article', $formats)) {
             return 'Article';
-        } elseif (in_array('Journal', $formats)) {
+        } elseif (in_array('Journal', $formats) || in_array('eJournal', $formats)) {
             return 'Journal';
         } elseif (isset($formats[0])) {
             return $formats[0];
@@ -1133,7 +1133,12 @@ class DefaultRecord extends AbstractBase
      */
     public function getShortTitle()
     {
-        return $this->fields['title_short'] ?? '';
+        if (is_array($this->fields['title_short'])) {
+            $title = $this->fields['title_short'][0];
+        } else {
+            $title = $this->fields['title_short'];
+        }
+        return $title ?? '';
     }
 
     /**
@@ -1254,7 +1259,12 @@ class DefaultRecord extends AbstractBase
      */
     public function getTitle()
     {
-        return $this->fields['title'] ?? '';
+        if (is_array($this->fields['title'])) {
+            $title = $this->fields['title'][0];
+        } else {
+            $title = $this->fields['title'];
+        }
+        return $title ?? '';
     }
 
     /**

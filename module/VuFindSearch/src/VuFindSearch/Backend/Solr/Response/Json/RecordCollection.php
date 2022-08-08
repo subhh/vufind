@@ -165,6 +165,16 @@ class RecordCollection extends AbstractRecordCollection
     }
 
     /**
+     * Get response header.
+     *
+     * @return array
+     */
+    public function getResponseHeader ()
+    {
+        return $this->response['responseHeader'] ?? [];
+    }
+
+    /**
      * Get raw Solr input parameters from the response.
      *
      * @return array
