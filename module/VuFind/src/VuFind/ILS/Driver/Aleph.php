@@ -1876,14 +1876,13 @@ class Aleph extends AbstractBase implements \Laminas\Log\LoggerAwareInterface,
     public function getConfig($func, $params = null)
     {
         if ($func == "Holds") {
-            if (isset($this->config['Holds'])) {
-                return $this->config['Holds'];
-            }
-            return [
-                "HMACKeys" => "id:item_id",
-                "extraHoldFields" => "comments:requiredByDate:pickUpLocation",
-                "defaultRequiredDate" => "0:1:0"
+            $holdsConfig = $this->config['Holds'] ?? [];
+            $defaults = [
+                'HMACKeys' => 'id:item_id',
+                'extraHoldFields' => 'comments:requiredByDate:pickUpLocation',
+                'defaultRequiredDate' => '0:1:0',
             ];
+            return $holdsConfig + $defaults;
         } elseif ('getMyTransactionHistory' === $func) {
             if (empty($this->config['TransactionHistory']['enabled'])) {
                 return false;
