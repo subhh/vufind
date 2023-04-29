@@ -59,11 +59,9 @@ class Cache implements \Laminas\Log\LoggerAwareInterface
     protected $cacheConfig;
 
     /**
-     * Database table used by cache
-     *
-     * @var \VuFind\Db\Table\Record
+     * @var Cache\RecordCacheStrategyInterface
      */
-    protected $recordTable;
+    protected $strategy;
 
     /**
      * Record driver plugin manager
@@ -89,10 +87,10 @@ class Cache implements \Laminas\Log\LoggerAwareInterface
     public function __construct(
         RecordFactory $recordFactoryManager,
         Config $config,
-        Record $recordTable
+        Cache\RecordCacheStrategyInterface $strategy
     ) {
         $this->cacheConfig = $config;
-        $this->recordTable = $recordTable;
+        $this->strategy = $strategy;
         $this->recordFactoryManager = $recordFactoryManager;
 
         $this->setContext(Cache::CONTEXT_DEFAULT);
@@ -111,7 +109,7 @@ class Cache implements \Laminas\Log\LoggerAwareInterface
     {
         if (isset($this->cachableSources[$source])) {
             $this->debug("Updating {$source}|{$recordId}");
-            $this->recordTable->updateRecord($recordId, $source, $rawData);
+            $this->strategy->update($recordId, new Cache\RecordCacheEntry($source, $rawData));
         }
     }
 
@@ -126,7 +124,7 @@ class Cache implements \Laminas\Log\LoggerAwareInterface
     public function lookup($id, $source)
     {
         $this->debug("Checking {$source}|{$id}");
-        $record = $this->recordTable->findRecord($id, $source);
+        $record = $this->strategy->get($id, $source);
         $this->debug(
             "Cached record {$source}|{$id} "
             . ($record !== false ? 'found' : 'not found')
@@ -159,7 +157,11 @@ class Cache implements \Laminas\Log\LoggerAwareInterface
 
         $this->debug("Checking $source batch: " . implode(', ', $ids));
         $vufindRecords = [];
-        $cachedRecords = $this->recordTable->findRecords($ids, $source);
+        $cachedRecords = [];
+        foreach ($ids as $id) {
+            $cachedRecords[] = $this->strategy->get($ids, $source);
+        }
+        $cachedRecords = array_filter($cachedRecords);
         foreach ($cachedRecords as $cachedRecord) {
             try {
                 $vufindRecords[] = $this->getVuFindRecord($cachedRecord);
@@ -270,10 +272,10 @@ class Cache implements \Laminas\Log\LoggerAwareInterface
      *
      * @return \VuFind\RecordDriver\AbstractBase
      */
-    protected function getVuFindRecord($cachedRecord)
+    protected function getVuFindRecord(Cache\RecordCacheEntry $cachedRecord)
     {
-        $source = $cachedRecord['source'];
-        $doc = unserialize($cachedRecord['data']);
+        $source = $cachedRecord->source;
+        $doc = unserialize($cachedRecord->data);
 
         // Solr records are loaded in special-case fashion:
         if ($source === 'VuFind' || $source === 'Solr') {
