@@ -7,10 +7,11 @@ final class RecordCacheEntry
     /** @var string */
     public $source;
 
-    /** @var string */
+    /** @var mixed[] */
     public $data;
 
-    public function __construct (string $source, string $data)
+    /** mixed[] */
+    public function __construct (string $source, array $data)
     {
         $this->source = $source;
         $this->data = $data;
