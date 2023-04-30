@@ -161,7 +161,7 @@ class Cache implements \Laminas\Log\LoggerAwareInterface
         $vufindRecords = [];
         $cachedRecords = [];
         foreach ($ids as $id) {
-            $cachedRecords[] = $this->strategy->get($ids, $source);
+            $cachedRecords[] = $this->strategy->get($id, $source);
         }
         $cachedRecords = array_filter($cachedRecords);
         foreach ($cachedRecords as $cachedRecord) {
