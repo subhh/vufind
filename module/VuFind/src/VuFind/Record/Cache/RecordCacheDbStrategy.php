@@ -14,12 +14,12 @@ final class RecordCacheDbStrategy implements RecordCacheStrategyInterface
         $this->recordTable = $recordTable;
     }
 
-    public function update ($recordId, RecordCacheEntry $record) : void
+    public function update (string $recordId, RecordCacheEntry $record) : void
     {
         $this->recordTable->updateRecord($recordId, $record->source, $record->data);
     }
 
-    public function get ($recordId, $source) : ?RecordCacheEntry
+    public function get (string $recordId, string $source) : ?RecordCacheEntry
     {
         if ($record = $this->recordTable->findRecord($recordId, $source)) {
             return new RecordCacheEntry($record['source'], $record['data']);
