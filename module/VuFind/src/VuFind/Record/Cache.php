@@ -130,7 +130,9 @@ class Cache implements \Laminas\Log\LoggerAwareInterface
             . ($record !== false ? 'found' : 'not found')
         );
         try {
-            return $record !== false ? [$this->getVuFindRecord($record)] : [];
+            if ($record) {
+                return $this->getVuFindRecord($record);
+            }
         } catch (\Exception $e) {
             $this->logError(
                 'Could not load record {$source}|{$id} from the record cache: '
