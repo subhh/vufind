@@ -305,10 +305,12 @@ class CacheTest extends \PHPUnit\Framework\TestCase
      */
     protected function getRecordCache()
     {
+        $table = $this->getRecordTable();
+        $strategy = new \VuFind\Record\Cache\RecordCacheDbStrategy($table);
         $recordCache = new Cache(
             $this->getRecordFactoryManager(),
             $this->getConfig(),
-            $this->getRecordTable()
+            $strategy
         );
 
         return $recordCache;
