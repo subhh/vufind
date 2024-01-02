@@ -734,9 +734,9 @@ class DefaultRecord extends AbstractBase
         $formats = $this->getFormats();
         if (in_array('Book', $formats) || in_array('eBook', $formats)) {
             return 'Book';
-        } elseif (in_array('Article', $formats)) {
+        } elseif (in_array('Article', $formats) || in_array('electronic Article', $formats)) {
             return 'Article';
-        } elseif (in_array('Journal', $formats)) {
+        } elseif (in_array('Journal', $formats) || in_array('eJournal', $formats)) {
             return 'Journal';
         } elseif (strlen($this->getCleanISSN()) > 0) {
             // If the record has an ISSN and we have not already
@@ -1210,7 +1210,14 @@ class DefaultRecord extends AbstractBase
      */
     public function getShortTitle()
     {
-        return $this->fields['title_short'] ?? '';
+        if (array_key_exists('title_short', $this->fields)) {
+            if (is_array($this->fields['title_short'])) {
+                $title = $this->fields['title_short'][0];
+            } else {
+                $title = $this->fields['title_short'];
+            }
+        }
+        return $title ?? '';
     }
 
     /**
@@ -1231,7 +1238,14 @@ class DefaultRecord extends AbstractBase
      */
     public function getSubtitle()
     {
-        return $this->fields['title_sub'] ?? '';
+        if (array_key_exists('title_sub', $this->fields)) {
+            if (is_array($this->fields['title_sub'])) {
+                $subtitle = $this->fields['title_sub'][0];
+            } else {
+                $subtitle = $this->fields['title_sub'];
+            }
+        }
+        return $subtitle ?? '';
     }
 
     /**
@@ -1336,7 +1350,14 @@ class DefaultRecord extends AbstractBase
      */
     public function getTitle()
     {
-        return $this->fields['title'] ?? '';
+        if (array_key_exists('title', $this->fields)) {
+            if (is_array($this->fields['title'])) {
+                $title = $this->fields['title'][0];
+            } else {
+                $title = $this->fields['title'];
+            }
+        }
+        return $title ?? '';
     }
 
     /**
