@@ -1,8 +1,9 @@
 <?php
+
 /**
  * VuFind Theme Public Resource Handler (for CSS, JS, etc.)
  *
- * PHP version 7
+ * PHP version 8
  *
  * Copyright (C) Villanova University 2010.
  *
@@ -25,7 +26,12 @@
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     https://vufind.org Main Site
  */
+
 namespace VuFindTheme;
+
+use function count;
+use function in_array;
+use function is_array;
 
 /**
  * VuFind Theme Public Resource Handler (for CSS, JS, etc.)
@@ -62,7 +68,7 @@ class ResourceContainer
     /**
      * Favicon
      *
-     * @var string
+     * @var string|array|null
      */
     protected $favicon = null;
 
@@ -79,25 +85,6 @@ class ResourceContainer
      * @var string
      */
     protected $generator = '';
-
-    /**
-     * Add a Less CSS file.
-     *
-     * @param array|string $less Less CSS file (or array of Less CSS files) to add
-     *
-     * @return void
-     */
-    public function addLessCss($less)
-    {
-        if (!is_array($less) && !is_a($less, 'Traversable')) {
-            $less = [$less];
-        }
-        unset($less['active']);
-        foreach ($less as $current) {
-            $this->less[] = $current;
-            $this->removeCSS($current);
-        }
-    }
 
     /**
      * Add a CSS file.
@@ -138,7 +125,7 @@ class ResourceContainer
         } elseif ($js === []) {
             return;
         } else {
-            throw new \Exception("Invalid JS entry format: " . print_r($js, true));
+            throw new \Exception('Invalid JS entry format: ' . print_r($js, true));
         }
     }
 
@@ -256,7 +243,8 @@ class ResourceContainer
             foreach (array_keys($array) as $i) {
                 if (isset($entry['priority'])) {
                     $currentPriority = $array[$i]['priority'] ?? null;
-                    if (!isset($currentPriority)
+                    if (
+                        !isset($currentPriority)
                         || $currentPriority > $entry['priority']
                     ) {
                         array_splice($array, $i, 0, [$entry]);
@@ -280,16 +268,6 @@ class ResourceContainer
         // Insert at end if either no priority/dependency is given
         // or no other element has been found
         $array[] = $entry;
-    }
-
-    /**
-     * Get Less CSS files.
-     *
-     * @return array
-     */
-    public function getLessCss()
-    {
-        return array_unique($this->less);
     }
 
     /**
@@ -338,7 +316,8 @@ class ResourceContainer
         // have been converted to arrays
         $parts = explode(':', $current);
         // Special case: don't explode URLs:
-        if (($parts[0] === 'http' || $parts[0] === 'https')
+        if (
+            ($parts[0] === 'http' || $parts[0] === 'https')
             && '//' === substr($parts[1], 0, 2)
         ) {
             $protocol = array_shift($parts);
@@ -372,7 +351,7 @@ class ResourceContainer
     /**
      * Set the favicon.
      *
-     * @param string $favicon New favicon path.
+     * @param string|array $favicon New favicon path.
      *
      * @return void
      */
@@ -384,7 +363,7 @@ class ResourceContainer
     /**
      * Get the favicon (null for none).
      *
-     * @return string
+     * @return string|array|null
      */
     public function getFavicon()
     {

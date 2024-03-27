@@ -1,8 +1,9 @@
 <?php
+
 /**
  * AJAX handler plugin manager
  *
- * PHP version 7
+ * PHP version 8
  *
  * Copyright (C) Villanova University 2018.
  *
@@ -25,6 +26,7 @@
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     https://vufind.org/wiki/development Wiki
  */
+
 namespace VuFind\AjaxHandler;
 
 /**
@@ -56,6 +58,7 @@ class PluginManager extends \VuFind\ServiceManager\AbstractPluginManager
         'getRecordCommentsAsHTML' => GetRecordCommentsAsHTML::class,
         'getRecordCover' => GetRecordCover::class,
         'getRecordDetails' => GetRecordDetails::class,
+        'getRecordRating' => GetRecordRating::class,
         'getRecordTags' => GetRecordTags::class,
         'getRecordVersions' => GetRecordVersions::class,
         'getRequestGroupPickupLocations' => GetRequestGroupPickupLocations::class,
@@ -96,6 +99,7 @@ class PluginManager extends \VuFind\ServiceManager\AbstractPluginManager
         GetRecordCommentsAsHTML::class => GetRecordCommentsAsHTMLFactory::class,
         GetRecordCover::class => GetRecordCoverFactory::class,
         GetRecordDetails::class => GetRecordDetailsFactory::class,
+        GetRecordRating::class => GetRecordRatingFactory::class,
         GetRecordTags::class => GetRecordTagsFactory::class,
         GetRecordVersions::class => GetRecordVersionsFactory::class,
         GetRequestGroupPickupLocations::class =>

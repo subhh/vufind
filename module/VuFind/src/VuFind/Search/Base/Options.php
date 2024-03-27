@@ -1,8 +1,9 @@
 <?php
+
 /**
  * Abstract options search model.
  *
- * PHP version 7
+ * PHP version 8
  *
  * Copyright (C) Villanova University 2010.
  *
@@ -25,10 +26,18 @@
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     https://vufind.org Main Page
  */
+
 namespace VuFind\Search\Base;
 
 use Laminas\Config\Config;
 use VuFind\I18n\Translator\TranslatorAwareInterface;
+
+use function count;
+use function get_class;
+use function in_array;
+use function intval;
+use function is_array;
+use function is_string;
 
 /**
  * Abstract options search model.
@@ -193,6 +202,20 @@ abstract class Options implements TranslatorAwareInterface
     protected $translatedFacetsFormats = [];
 
     /**
+     * Hierarchical facets
+     *
+     * @var array
+     */
+    protected $hierarchicalFacets = [];
+
+    /**
+     * Hierarchical facet separators
+     *
+     * @var array
+     */
+    protected $hierarchicalFacetSeparators = [];
+
+    /**
      * Spelling setting
      *
      * @var bool
@@ -242,6 +265,13 @@ abstract class Options implements TranslatorAwareInterface
     protected $autocompleteAutoSubmit = true;
 
     /**
+     * Autocomplete query formatting rules
+     *
+     * @var array
+     */
+    protected $autocompleteFormattingRules = [];
+
+    /**
      * Configuration file to read global settings from
      *
      * @var string
@@ -267,7 +297,7 @@ abstract class Options implements TranslatorAwareInterface
      *
      * @var string
      */
-    protected $listviewOption = "full";
+    protected $listviewOption = 'full';
 
     /**
      * Configuration loader
@@ -303,9 +333,8 @@ abstract class Options implements TranslatorAwareInterface
         $id = $this->getSearchClassId();
         $facetSettings = $configLoader->get($this->facetsIni);
         if (isset($facetSettings->AvailableFacetSortOptions[$id])) {
-            foreach ($facetSettings->AvailableFacetSortOptions[$id]->toArray()
-                     as $facet => $sortOptions
-            ) {
+            $sortArray = $facetSettings->AvailableFacetSortOptions[$id]->toArray();
+            foreach ($sortArray as $facet => $sortOptions) {
                 $this->facetSortOptions[$facet] = [];
                 foreach (explode(',', $sortOptions) as $fieldAndLabel) {
                     [$field, $label] = explode('=', $fieldAndLabel);
@@ -393,7 +422,8 @@ abstract class Options implements TranslatorAwareInterface
      */
     public function getLabelForBasicHandler($handler)
     {
-        return $this->basicHandlers[$handler] ?? false;
+        $handlers = $this->getBasicHandlers();
+        return $handlers[$handler] ?? false;
     }
 
     /**
@@ -692,6 +722,26 @@ abstract class Options implements TranslatorAwareInterface
     }
 
     /**
+     * Get hierarchical facet fields.
+     *
+     * @return array
+     */
+    public function getHierarchicalFacets()
+    {
+        return $this->hierarchicalFacets;
+    }
+
+    /**
+     * Get hierarchical facet separators.
+     *
+     * @return array
+     */
+    public function getHierarchicalFacetSeparators()
+    {
+        return $this->hierarchicalFacetSeparators;
+    }
+
+    /**
      * Get current spellcheck setting and (optionally) change it.
      *
      * @param bool $bool True to enable, false to disable, null to leave alone
@@ -763,6 +813,16 @@ abstract class Options implements TranslatorAwareInterface
     public function autocompleteAutoSubmit()
     {
         return $this->autocompleteAutoSubmit;
+    }
+
+    /**
+     * Get autocomplete query formatting rules.
+     *
+     * @return array
+     */
+    public function getAutocompleteFormattingRules(): array
+    {
+        return $this->autocompleteFormattingRules;
     }
 
     /**
@@ -899,8 +959,7 @@ abstract class Options implements TranslatorAwareInterface
 
     /**
      * If there is a limit to how many search results a user can access, this
-     * method will return that limit.  If there is no limit, this will return
-     * -1.
+     * method will return that limit. If there is no limit, this will return -1.
      *
      * @return int
      */
@@ -928,7 +987,7 @@ abstract class Options implements TranslatorAwareInterface
     }
 
     /**
-     * Load all recommendation settings from the relevant ini file.  Returns an
+     * Load all recommendation settings from the relevant ini file. Returns an
      * associative array where the key is the location of the recommendations (top
      * or side) and the value is the settings found in the file (which may be either
      * a single string or an array of strings).
@@ -947,7 +1006,8 @@ abstract class Options implements TranslatorAwareInterface
         // otherwise:
         $recommend = [];
 
-        if (null !== $handler
+        if (
+            null !== $handler
             && isset($searchSettings->TopRecommendations->$handler)
         ) {
             $recommend['top'] = $searchSettings->TopRecommendations
@@ -958,7 +1018,8 @@ abstract class Options implements TranslatorAwareInterface
                 ? $searchSettings->General->default_top_recommend->toArray()
                 : false;
         }
-        if (null !== $handler
+        if (
+            null !== $handler
             && isset($searchSettings->SideRecommendations->$handler)
         ) {
             $recommend['side'] = $searchSettings->SideRecommendations
@@ -969,7 +1030,8 @@ abstract class Options implements TranslatorAwareInterface
                 ? $searchSettings->General->default_side_recommend->toArray()
                 : false;
         }
-        if (null !== $handler
+        if (
+            null !== $handler
             && isset($searchSettings->NoResultsRecommendations->$handler)
         ) {
             $recommend['noresults'] = $searchSettings->NoResultsRecommendations
@@ -1006,6 +1068,19 @@ abstract class Options implements TranslatorAwareInterface
         }
 
         return $class[2];
+    }
+
+    /**
+     * Get the search class ID for identifying search box options; this is normally
+     * the same as the current search class ID, but some "special purpose" search
+     * namespaces (e.g. SolrAuthor) need to point to a different ID for search box
+     * generation
+     *
+     * @return string
+     */
+    public function getSearchBoxSearchClassId(): string
+    {
+        return $this->getSearchClassId();
     }
 
     /**
@@ -1053,6 +1128,10 @@ abstract class Options implements TranslatorAwareInterface
             ?? $this->autocompleteEnabled;
         $this->autocompleteAutoSubmit = $searchSettings->Autocomplete->auto_submit
             ?? $this->autocompleteAutoSubmit;
+        $formattingRules = $searchSettings->Autocomplete->formatting_rule ?? [];
+        if (!is_string($formattingRules) && count($formattingRules) > 0) {
+            $this->autocompleteFormattingRules = $formattingRules->toArray();
+        }
     }
 
     /**
@@ -1069,6 +1148,6 @@ abstract class Options implements TranslatorAwareInterface
         $limits = $facetSettings->Advanced_Settings->limitOrderOverride ?? null;
         $delimiter = $facetSettings->Advanced_Settings->limitDelimiter ?? '::';
         $limitConf = $limits ? $limits->get($limit) : '';
-        return array_map('trim', explode($delimiter, $limitConf));
+        return array_map('trim', explode($delimiter, $limitConf ?? ''));
     }
 }

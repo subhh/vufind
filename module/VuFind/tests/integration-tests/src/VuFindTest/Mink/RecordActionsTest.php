@@ -1,10 +1,11 @@
 <?php
+
 /**
  * Mink record actions test class.
  *
- * PHP version 7
+ * PHP version 8
  *
- * Copyright (C) Villanova University 2011.
+ * Copyright (C) Villanova University 2011-2023.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2,
@@ -22,10 +23,18 @@
  * @category VuFind
  * @package  Tests
  * @author   Demian Katz <demian.katz@villanova.edu>
+ * @author   Juha Luoma <juha.luoma@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     https://vufind.org Main Page
  */
+
 namespace VuFindTest\Mink;
+
+use Behat\Mink\Element\Element;
+
+use function count;
+use function intval;
+use function strlen;
 
 /**
  * Mink record actions test class.
@@ -35,13 +44,16 @@ namespace VuFindTest\Mink;
  * @category VuFind
  * @package  Tests
  * @author   Demian Katz <demian.katz@villanova.edu>
+ * @author   Juha Luoma <juha.luoma@helsinki.fi>
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     https://vufind.org Main Page
  * @retry    4
  */
 final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
 {
+    use \VuFindTest\Feature\AutocompleteTrait;
     use \VuFindTest\Feature\LiveDatabaseTrait;
+    use \VuFindTest\Feature\SearchSortTrait;
     use \VuFindTest\Feature\UserCreationTrait;
 
     /**
@@ -55,27 +67,15 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
     }
 
     /**
-     * Standard setup method.
-     *
-     * @return void
-     */
-    public function setUp(): void
-    {
-        // Give up if we're not running in CI:
-        if (!$this->continuousIntegrationRunning()) {
-            $this->markTestSkipped('Continuous integration not running.');
-            return;
-        }
-    }
-
-    /**
      * Move the current page to a record by performing a search.
      *
-     * @return \Behat\Mink\Element\Element
+     * @param string $query Search query to perform.
+     *
+     * @return Element
      */
-    protected function gotoRecord()
+    protected function gotoRecord(string $query = 'Dewey'): Element
     {
-        $page = $this->performSearch('Dewey');
+        $page = $this->performSearch($query);
         $this->clickCss($page, '.result a.title');
         return $page;
     }
@@ -83,19 +83,19 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
     /**
      * Make new account
      *
-     * @param \Behat\Mink\Element\Element $page     Page element
-     * @param string                      $username Username to create
+     * @param Element $page     Page element
+     * @param string  $username Username to create
      *
      * @return void
      */
-    protected function makeAccount($page, $username)
+    protected function makeAccount(Element $page, string $username): void
     {
         $this->clickCss($page, '.modal-body .createAccountLink');
         $this->fillInAccountForm(
             $page,
             ['username' => $username, 'email' => $username . '@vufind.org']
         );
-        $this->clickCss($page, '.modal-body .btn.btn-primary');
+        $this->clickCss($page, '#accountForm .btn.btn-primary');
     }
 
     /**
@@ -105,7 +105,7 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
      *
      * @return void
      */
-    public function testAddComment()
+    public function testAddComment(): void
     {
         // Go to a record view
         $page = $this->gotoRecord();
@@ -148,15 +148,17 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
      * Test adding comments on records (with Captcha enabled).
      *
      * @return void
+     *
+     * @depends testAddComment
      */
-    public function testAddCommentWithCaptcha()
+    public function testAddCommentWithCaptcha(): void
     {
         // Set up configs:
         $this->changeConfigs(
             [
                 'config' => [
-                    'Captcha' => ['types' => ['demo'], 'forms' => '*']
-                ]
+                    'Captcha' => ['types' => ['demo'], 'forms' => '*'],
+                ],
             ]
         );
         // Go to a record view
@@ -206,13 +208,46 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
     }
 
     /**
+     * Add tags to a record
+     *
+     * @param Element $page Page object
+     * @param string  $tags Tag(s) to add
+     * @param ?string $user Username to log in with (null if already logged in)
+     * @param ?string $pass Password to log in with (null if already logged in)
+     *
+     * @return void
+     */
+    protected function addTagsToRecord(
+        Element $page,
+        string $tags,
+        ?string $user = null,
+        ?string $pass = null
+    ): void {
+        $this->clickCss($page, '.tag-record');
+        // Login if necessary
+        if (!empty($user) && !empty($pass)) {
+            $this->fillInLoginForm($page, $user, $pass);
+            $this->submitLoginForm($page);
+        }
+        // Add tags
+        $this->findCss($page, '.modal #addtag_tag')->setValue($tags);
+        $this->clickCss($page, '.modal-body .btn.btn-primary');
+        $this->waitForPageLoad($page);
+        $success = $this->findCss($page, '.modal-body .alert-success');
+        $this->assertEquals('Tags Saved', $success->getText());
+        $this->closeLightbox($page);
+    }
+
+    /**
      * Test adding tags on records.
      *
      * @retryCallback removeUsername2
      *
      * @return void
+     *
+     * @depends testAddComment
      */
-    public function testAddTag()
+    public function testAddTag(): void
     {
         // Go to a record view
         $page = $this->gotoRecord();
@@ -226,22 +261,11 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
         $this->findCss($page, '.modal #addtag_tag');
         $this->closeLightbox($page);
         $this->clickCss($page, '.logoutOptions a.logout');
-        // Login
-        // $page = $this->gotoRecord();
-        $this->clickCss($page, '.tag-record');
-        $this->fillInLoginForm($page, 'username2', 'test');
-        $this->submitLoginForm($page);
-        // Add tags
-        $this->findCss($page, '.modal #addtag_tag')->setValue('one 2 "three 4" five');
-        $this->clickCss($page, '.modal-body .btn.btn-primary');
-        $this->waitForPageLoad($page);
-        $success = $this->findCss($page, '.modal-body .alert-success');
-        $this->assertEquals('Tags Saved', $success->getText());
-        $this->closeLightbox($page);
+        $this->addTagsToRecord($page, 'one 2 "three 4" five', 'username2', 'test');
         // Count tags
         $this->waitForPageLoad($page);
         $tags = $page->findAll('css', '.tagList .tag');
-        $this->assertEquals(4, count($tags));
+        $this->assertCount(4, $tags);
         $tvals = [];
         foreach ($tags as $t) {
             $link = $t->find('css', 'a');
@@ -268,7 +292,7 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
 
         // Flat tags
         $this->assertNull($page->find('css', '.tagList .tag.selected'));
-        $this->assertNull($page->find('css', '.tagList .tag .fa'));
+        $this->assertNull($page->find('css', '.tagList .tag .tag-submit'));
         // Login with second account
         $this->clickCss($page, '#loginOptions a');
         $this->findCss($page, '.modal.in [name="username"]');
@@ -279,7 +303,7 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
         // Check selected == 0
         $this->unFindCss($page, '.tagList .tag.selected');
         $this->findCss($page, '.tagList .tag');
-        $this->findCss($page, '.tagList .tag .fa-plus');
+        $this->findCss($page, '.tagList .tag .tag-submit');
         // Click one
         $this->clickCss($page, '.tagList .tag button');
         // Check selected == 1
@@ -295,15 +319,90 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
      * Test searching for one of the tags created above.
      *
      * @return void
+     *
+     * @depends testAddTag
      */
-    public function testTagSearch()
+    public function testTagSearch(): void
     {
         // First try an undefined tag:
         $page = $this->performSearch('tag-not-in-system', 'tag');
         $this->assertEquals('No Results!', $this->findCss($page, 'h2')->getText());
-        // Now try a tag defined earlier:
+        // Now try a tag defined earlier, with a couple more instances added:
+        $page = $this->goToRecord('id:"<angle>brackets&ampersands"');
+        $this->addTagsToRecord($page, 'five', 'username2', 'test');
+        $page = $this->goToRecord('id:"017791359-1"');
+        $this->addTagsToRecord($page, 'five');
+        // Now perform the search:
         $page = $this->performSearch('five', 'tag');
-        $expected = 'Showing 1 - 1 results of 1 for search \'five\'';
+        $this->assertResultTitles($page, 3, 'Dewey browse test', '<HTML> The Basics');
+        $this->assertSelectedSort($page, 'title');
+    }
+
+    /**
+     * Data provider for testTagSearchSort
+     *
+     * @return array
+     */
+    public function getTagSearchSortData(): array
+    {
+        return [
+            [1, 'author', 'Fake Record 1 with multiple relators/', 'Dewey browse test'],
+            [2, 'year DESC', '<HTML> The Basics', 'Fake Record 1 with multiple relators/'],
+            [3, 'year', 'Fake Record 1 with multiple relators/', '<HTML> The Basics'],
+        ];
+    }
+
+    /**
+     * Test sorting the tag search results.
+     *
+     * @param int    $index         Sort drop-down index to test
+     * @param string $expectedSort  Expected sort value at $index
+     * @param string $expectedFirst Expected first title after sorting
+     * @param string $expectedLast  Expected last title after sorting
+     *
+     * @return void
+     *
+     * @dataProvider getTagSearchSortData
+     *
+     * @depends testTagSearch
+     */
+    public function testTagSearchSort(
+        int $index,
+        string $expectedSort,
+        string $expectedFirst,
+        string $expectedLast
+    ): void {
+        $page = $this->performSearch('five', 'tag');
+        $this->clickCss($page, $this->sortControlSelector . ' option', null, $index);
+        $this->waitForPageLoad($page);
+        $this->assertResultTitles($page, 3, $expectedFirst, $expectedLast);
+        $this->assertSelectedSort($page, $expectedSort);
+    }
+
+    /**
+     * Test that default autocomplete behavior is correct on a non-default search handler.
+     *
+     * @return void
+     *
+     * @depends testTagSearch
+     */
+    public function testTagAutocomplete(): void
+    {
+        $session = $this->getMinkSession();
+        $session->visit($this->getVuFindUrl() . '/Search/Home');
+        $page = $session->getPage();
+        $this->findCss($page, '#searchForm_type')
+            ->setValue('tag');
+        $this->findCss($page, '#searchForm_lookfor')
+            ->setValue('fiv');
+        $acItem = $this->getAndAssertFirstAutocompleteValue($page, 'five');
+        $acItem->click();
+        $this->waitForPageLoad($page);
+        $this->assertEquals(
+            $this->getVuFindUrl() . '/Search/Results?lookfor=five&type=tag',
+            $session->getCurrentUrl()
+        );
+        $expected = 'Showing 1 - 3 results of 3 for search \'five\'';
         $this->assertEquals(
             $expected,
             substr(
@@ -318,15 +417,17 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
      * Test adding case sensitive tags on records.
      *
      * @return void
+     *
+     * @depends testAddTag
      */
-    public function testAddSensitiveTag()
+    public function testAddSensitiveTag(): void
     {
         // Set up configs:
         $this->changeConfigs(
             [
                 'config' => [
-                    'Social' => ['case_sensitive_tags' => 'true']
-                ]
+                    'Social' => ['case_sensitive_tags' => 'true'],
+                ],
             ]
         );
         // Login
@@ -344,7 +445,7 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
         // Count tags
         $this->waitForPageLoad($page);
         $tags = $page->findAll('css', '.tagList .tag');
-        $this->assertEquals(6, count($tags));
+        $this->assertCount(6, $tags);
     }
 
     /**
@@ -354,14 +455,14 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
      *
      * @return void
      */
-    public function testEmail()
+    public function testEmail(): void
     {
         // Set up configs:
         $this->changeConfigs(
             [
                 'config' => [
                     'Mail' => ['testOnly' => 1],
-                ]
+                ],
             ]
         );
 
@@ -418,14 +519,14 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
      *
      * @return void
      */
-    public function testSMS()
+    public function testSMS(): void
     {
         // Set up configs:
         $this->changeConfigs(
             [
                 'config' => [
                     'Mail' => ['testOnly' => 1],
-                ]
+                ],
             ]
         );
 
@@ -474,6 +575,8 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
 
     /**
      * Test record view print button.
+     *
+     * @return void
      */
     public function testPrint(): void
     {
@@ -492,7 +595,215 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
         // Make sure we're printing
         $this->assertEqualsWithTimeout(
             'print=1',
-            [$this, 'getCurrentQueryString']
+            function () {
+                return $this->getCurrentQueryString(true);
+            }
+        );
+    }
+
+    /**
+     * Test rating disabled.
+     *
+     * @return void
+     */
+    public function testRatingDisabled(): void
+    {
+        // Go to a record view
+        $page = $this->gotoRecord();
+        // Check that rating is not displayed:
+        $this->unFindCss($page, 'div.rating');
+    }
+
+    /**
+     * Data provider for testRating
+     *
+     * @return array
+     */
+    public function getTestRatingData(): array
+    {
+        return [
+            [true],
+            [false],
+        ];
+    }
+
+    /**
+     * Test star ratings on records.
+     *
+     * @param bool $allowRemove Value for remove_rating config
+     *
+     * @dataProvider getTestRatingData
+     *
+     * @retryCallback removeUsername2And3And4
+     *
+     * @return void
+     */
+    public function testRating($allowRemove): void
+    {
+        // Set up configs:
+        $this->changeConfigs(
+            [
+                'config' => [
+                    'Social' => [
+                        'rating' => true,
+                        'remove_rating' => $allowRemove,
+                    ],
+                ],
+            ]
+        );
+        $this->removeUsername2And3And4();
+
+        $ratingLink = 'div.rating-average a';
+        $checked = 'div.rating-average input:checked';
+
+        // Go to a record view
+        $page = $this->gotoRecord();
+        // Click to add rating
+        $this->clickCss($page, $ratingLink);
+        // Click login link in lightbox:
+        $this->clickCss($page, '.modal.in a.btn');
+        // Lightbox login open?
+        $this->findCss($page, '.modal.in [name="username"]');
+        // Make account
+        $this->makeAccount($page, 'username2');
+        $this->waitForPageLoad($page);
+        $this->closeLightbox($page);
+        $this->waitForPageLoad($page);
+        $this->clickCss($page, '.logoutOptions a.logout');
+        // Click rating link:
+        $this->clickCss($page, $ratingLink);
+        // Click login link in lightbox:
+        $this->clickCss($page, '.modal.in a.btn');
+        $this->fillInLoginForm($page, 'username2', 'test');
+        $this->submitLoginForm($page);
+        // Click rating link again:
+        $this->waitForPageLoad($page);
+        $this->clickCss($page, $ratingLink);
+        // Add rating
+        $this->clickCss($page, '.modal form div.star-rating label', null, 10);
+        $this->waitForPageLoad($page);
+        $success = $this->findCss($page, '.alert-success');
+        $this->assertEquals('Rating Saved', $success->getText());
+        // Check result
+        $this->waitForPageLoad($page);
+        $inputs = $page->findAll('css', $checked);
+        $this->assertCount(1, $inputs);
+        $this->assertEquals('100', $inputs[0]->getValue());
+        // Update rating
+        $this->clickCss($page, $ratingLink);
+        $this->waitForPageLoad($page);
+        $this->clickCss($page, '.modal form div.star-rating label', null, 5);
+        $this->waitForPageLoad($page);
+        $success = $this->findCss($page, '.alert-success');
+        $this->assertEquals('Rating Saved', $success->getText());
+        // Check result
+        $inputs = $page->findAll('css', $checked);
+        $this->assertCount(1, $inputs);
+        $this->assertEquals('50', $inputs[0]->getValue());
+
+        if ($allowRemove) {
+            // Delete rating
+            $this->clickCss($page, $ratingLink);
+            $this->clickCss($page, '.modal-body .btn.btn-default');
+            $this->waitForPageLoad($page);
+            // Check result
+            $inputs = $page->findAll('css', $checked);
+            $this->assertCount(1, $inputs);
+            $this->assertEquals('', $inputs[0]->getValue());
+            // Add it back
+            $this->clickCss($page, $ratingLink);
+            $this->waitForPageLoad($page);
+            $this->clickCss($page, '.modal form div.star-rating label', null, 5);
+            $this->waitForPageLoad($page);
+        } else {
+            // Check that remove button is not present
+            $this->clickCss($page, $ratingLink);
+            $this->waitForPageLoad($page);
+            $this->unFindCss($page, '.modal-body .btn.btn-default');
+            $this->closeLightbox($page);
+        }
+
+        // Login with second account
+        $this->clickCss($page, '.logoutOptions a.logout');
+        $this->clickCss($page, '#loginOptions a');
+        $this->findCss($page, '.modal.in [name="username"]');
+        $this->makeAccount($page, 'username3');
+        $this->waitForPageLoad($page);
+
+        // Add rating
+        $this->clickCss($page, $ratingLink);
+        $this->clickCss($page, '.modal form div.star-rating label', null, 10);
+        $this->waitForPageLoad($page);
+        $success = $this->findCss($page, '.alert-success');
+        $this->assertEquals('Rating Saved', $success->getText());
+        // Check result
+        $this->waitForPageLoad($page);
+        $inputs = $page->findAll('css', $checked);
+        $this->assertCount(1, $inputs);
+        $this->assertEquals('70', $inputs[0]->getValue());
+
+        // Login with third account
+        $this->clickCss($page, '.logoutOptions a.logout');
+        $this->clickCss($page, '#loginOptions a');
+        $this->findCss($page, '.modal.in [name="username"]');
+        $this->makeAccount($page, 'username4');
+        $this->waitForPageLoad($page);
+
+        // Add comment with rating
+        $this->clickCss($page, '.record-tabs .usercomments a');
+        $this->waitForPageLoad($page);
+        $this->findCss($page, '.comment-form');
+        $this->findCss($page, 'form.comment-form [name="comment"]')->setValue('one');
+        $this->clickCss($page, 'form.comment-form div.star-rating label', null, 10);
+        // Check that "Clear" link is present before submitting:
+        $this->findCss($page, 'form.comment-form a');
+        $this->clickCss($page, 'form.comment-form .btn-primary');
+        // Check result (wait for the value to update):
+        $this->assertEqualsWithTimeout(
+            [1, '80'],
+            function () use ($page, $checked) {
+                $inputs = $page->findAll('css', $checked);
+                return [count($inputs), $inputs ? $inputs[0]->getValue() : null];
+            }
+        );
+        if ($allowRemove) {
+            // Clear rating when adding another comment
+            $this->findCss($page, 'form.comment-form [name="comment"]')->setValue('two');
+            $this->clickCss($page, 'form.comment-form a');
+            $this->clickCss($page, 'form.comment-form .btn-primary');
+            // Check result (wait for the value to update):
+            $this->assertEqualsWithTimeout(
+                [1, '70'],
+                function () use ($page, $checked) {
+                    $inputs = $page->findAll('css', $checked);
+                    return [count($inputs), $inputs ? $inputs[0]->getValue() : null];
+                }
+            );
+        } else {
+            // Check that the "Clear" link is no longer available:
+            $this->unFindCss($page, 'form.comment-form a');
+        }
+
+        // Logout
+        $this->clickCss($page, '.logoutOptions a.logout');
+    }
+
+    /**
+     * Test export button found in toolbar
+     *
+     * @return void
+     */
+    public function testRefWorksExportButton(): void
+    {
+        // Go to a record view
+        $page = $this->gotoRecord();
+        // Click the first Export option in the drop-down menu
+        $this->clickCss($page, '.export-toggle');
+        $this->clickCss($page, '#export-options li a');
+        $this->waitForPageLoad($page);
+        $this->assertEquals(
+            'Send to RefWorks',
+            $this->findCss($page, '#export-form input.btn.btn-primary')->getValue()
         );
     }
 
@@ -501,9 +812,19 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
      *
      * @return void
      */
-    protected function removeUsername2()
+    protected function removeUsername2(): void
     {
         static::removeUsers(['username2']);
+    }
+
+    /**
+     * Retry cleanup method in case of failure during testRating.
+     *
+     * @return void
+     */
+    protected function removeUsername2And3And4(): void
+    {
+        static::removeUsers(['username2', 'username3', 'username4']);
     }
 
     /**
@@ -511,7 +832,7 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
      *
      * @return void
      */
-    protected function removeEmailManiac()
+    protected function removeEmailManiac(): void
     {
         static::removeUsers(['emailmaniac']);
     }
@@ -523,6 +844,6 @@ final class RecordActionsTest extends \VuFindTest\Integration\MinkTestCase
      */
     public static function tearDownAfterClass(): void
     {
-        static::removeUsers(['username1', 'username2', 'emailmaniac']);
+        static::removeUsers(['username1', 'username2', 'username3', 'username4', 'emailmaniac']);
     }
 }

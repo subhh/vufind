@@ -1,8 +1,9 @@
 <?php
+
 /**
  * SwitchQuery Recommendations Module
  *
- * PHP version 7
+ * PHP version 8
  *
  * Copyright (C) Villanova University 2010.
  *
@@ -26,10 +27,14 @@
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     https://vufind.org/wiki/development:plugins:recommendation_modules Wiki
  */
+
 namespace VuFind\Recommend;
 
 use VuFindSearch\Command\GetLuceneHelperCommand;
 use VuFindSearch\Service;
+
+use function in_array;
+use function strlen;
 
 /**
  * SwitchQuery Recommendations Module
@@ -142,7 +147,7 @@ class SwitchQuery implements RecommendInterface
     }
 
     /**
-     * Called after the Search Results object has performed its main search.  This
+     * Called after the Search Results object has performed its main search. This
      * may be used to extract necessary information from the Search Results object
      * or to perform completely unrelated processing.
      *
@@ -209,7 +214,7 @@ class SwitchQuery implements RecommendInterface
     protected function checkFuzzy($query)
     {
         // Don't stack tildes:
-        if (strpos($query, '~') !== false) {
+        if (str_contains($query, '~')) {
             return false;
         }
         $query = trim($query, ' ?*');
@@ -270,7 +275,7 @@ class SwitchQuery implements RecommendInterface
     {
         // Remove escaped quotes as they are of no consequence:
         $query = str_replace('\"', ' ', $query);
-        return (strpos($query, '"') === false)
+        return (!str_contains($query, '"'))
             ? false : trim(str_replace('"', ' ', $query));
     }
 

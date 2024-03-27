@@ -1,8 +1,9 @@
 <?php
+
 /**
  * SideFacets Recommendations Module
  *
- * PHP version 7
+ * PHP version 8
  *
  * Copyright (C) Villanova University 2010.
  *
@@ -25,10 +26,16 @@
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     https://vufind.org/wiki/development:plugins:recommendation_modules Wiki
  */
+
 namespace VuFind\Recommend;
 
 use VuFind\Search\Solr\HierarchicalFacetHelper;
 use VuFind\Solr\Utils as SolrUtils;
+
+use function get_class;
+use function in_array;
+use function intval;
+use function is_array;
 
 /**
  * SideFacets Recommendations Module
@@ -205,7 +212,8 @@ class SideFacets extends AbstractFacets
         if ($flipCheckboxes) {
             $this->checkboxFacets = array_flip($this->checkboxFacets);
         }
-        if (!$showDynamicCheckboxFacets
+        if (
+            !$showDynamicCheckboxFacets
             || strtolower(trim($showDynamicCheckboxFacets)) === 'false'
         ) {
             $this->showDynamicCheckboxFacets = false;
@@ -254,8 +262,12 @@ class SideFacets extends AbstractFacets
      */
     public function init($params, $request)
     {
+        $mainFacets = $this->mainFacets;
+        if ($request != null && ($enabledFacets = $request->get('enabledFacets', null)) !== null) {
+            $mainFacets = array_intersect_key($mainFacets, array_flip($enabledFacets));
+        }
         // Turn on side facets in the search results:
-        foreach ($this->mainFacets as $name => $desc) {
+        foreach ($mainFacets as $name => $desc) {
             $params->addFacet($name, $desc, in_array($name, $this->orFacets));
         }
         foreach ($this->checkboxFacets as $name => $desc) {
@@ -362,7 +374,7 @@ class SideFacets extends AbstractFacets
             'date' => $this->getDateFacets(),
             'fulldate' => $this->getFullDateFacets(),
             'generic' => $this->getGenericRangeFacets(),
-            'numeric' => $this->getNumericRangeFacets()
+            'numeric' => $this->getNumericRangeFacets(),
         ];
         $processed = [];
         foreach ($raw as $type => $values) {

@@ -1,8 +1,9 @@
 <?php
+
 /**
  * VuFind Search Controller
  *
- * PHP version 7
+ * PHP version 8
  *
  * Copyright (C) Villanova University 2010.
  *
@@ -25,13 +26,19 @@
  * @license  http://opensource.org/licenses/gpl-2.0.php GNU General Public License
  * @link     https://vufind.org Main Page
  */
+
 namespace VuFind\Controller;
 
+use Laminas\Http\Response as HttpResponse;
 use Laminas\Session\SessionManager;
 use Laminas\Stdlib\ResponseInterface as Response;
 use Laminas\View\Model\ViewModel;
 use VuFind\Search\RecommendListener;
 use VuFind\Solr\Utils as SolrUtils;
+
+use function count;
+use function in_array;
+use function intval;
 
 /**
  * VuFind Search Controller
@@ -128,7 +135,7 @@ class AbstractSearch extends AbstractBase
         if (empty($search)) {
             // User is trying to view a saved search from another session
             // (deliberate or expired) or associated with another user.
-            throw new \Exception("Attempt to access invalid search ID");
+            throw new \Exception('Attempt to access invalid search ID');
         }
 
         // If we got this far, the user is allowed to view the search, so we can
@@ -172,7 +179,8 @@ class AbstractSearch extends AbstractBase
             $searchUrl = $this->url()->fromRoute(
                 $results->getOptions()->getSearchAction()
             ) . $results->getUrlQuery()->getParams(false);
-            $this->getSearchMemory()->rememberSearch($searchUrl);
+            $this->getSearchMemory()
+                ->rememberSearch($searchUrl, $results->getSearchId());
         }
 
         // Always save search parameters, since these are namespaced by search
@@ -190,11 +198,13 @@ class AbstractSearch extends AbstractBase
         // Enable recommendations unless explicitly told to disable them:
         $all = ['top', 'side', 'noresults', 'bottom'];
         $noRecommend = $this->params()->fromQuery('noRecommend', false);
-        if ($noRecommend === 1 || $noRecommend === '1'
+        if (
+            $noRecommend === 1 || $noRecommend === '1'
             || $noRecommend === 'true' || $noRecommend === true
         ) {
             return [];
-        } elseif ($noRecommend === 0 || $noRecommend === '0'
+        } elseif (
+            $noRecommend === 0 || $noRecommend === '0'
             || $noRecommend === 'false' || $noRecommend === false
         ) {
             return $all;
@@ -367,7 +377,18 @@ class AbstractSearch extends AbstractBase
         } catch (\VuFindSearch\Backend\Exception\DeepPagingException $e) {
             return $this->redirectToLegalSearchPage($request, $e->getLegalPage());
         }
-        $view->params = $results->getParams();
+        $view->params = $params = $results->getParams();
+
+        // For page parameter being out of results list, we want to redirect to correct page
+        $page = $params->getPage();
+        $totalResults = $results->getResultTotal();
+        $limit = $params->getLimit();
+        $lastPage = $limit ? ceil($totalResults / $limit) : 1;
+        if ($totalResults > 0 && $page > $lastPage) {
+            $queryParams = $request;
+            $queryParams['page'] = $lastPage;
+            return $this->redirect()->toRoute('search-results', [], [ 'query' => $queryParams ]);
+        }
 
         // If we received an EmptySet back, that indicates that the real search
         // failed due to some kind of syntax error, and we should display a
@@ -387,6 +408,11 @@ class AbstractSearch extends AbstractBase
             // Add to search history:
             if ($this->saveToHistory) {
                 $this->saveSearchToHistory($results);
+            }
+
+            // Jump to only result, if configured:
+            if ($jump = $this->processJumpToOnlyResult($results)) {
+                return $jump;
             }
 
             // Set up results scroller:
@@ -422,36 +448,66 @@ class AbstractSearch extends AbstractBase
      *
      * @param \VuFind\Search\Base\Results $results Search results object.
      *
-     * @return bool|ViewModel
+     * @return bool|HttpResponse
      */
     protected function processJumpTo($results)
     {
-        // Jump to only result, if configured
-        $default = null;
-        $config = $this->serviceLocator->get(\VuFind\Config\PluginManager::class)
-            ->get('config');
-        if (($config->Record->jump_to_single_search_result ?? false)
-            && $results->getResultTotal() == 1
-        ) {
-            $default = 1;
-        }
         // Missing/invalid parameter?  Ignore it:
-        $jumpto = $this->params()->fromQuery('jumpto', $default);
+        $jumpto = $this->params()->fromQuery('jumpto');
         if (empty($jumpto) || !is_numeric($jumpto)) {
             return false;
         }
 
-        // Parameter out of range?  Ignore it:
         $recordList = $results->getResults();
-        if (!isset($recordList[$jumpto - 1])) {
-            return false;
+        return isset($recordList[$jumpto - 1])
+            ? $this->getRedirectForRecord($recordList[$jumpto - 1]) : false;
+    }
+
+    /**
+     * Process jump to record if there is only one result.
+     *
+     * @param \VuFind\Search\Base\Results $results Search results object.
+     *
+     * @return bool|HttpResponse
+     */
+    protected function processJumpToOnlyResult($results)
+    {
+        // If jumpto is explicitly disabled (set to false, e.g. by combined search),
+        // we should NEVER jump to a result regardless of other factors.
+        $jumpto = $this->params()->fromQuery('jumpto', true);
+        if (
+            $jumpto
+            && ($this->getConfig()->Record->jump_to_single_search_result ?? false)
+            && $results->getResultTotal() == 1
+            && $recordList = $results->getResults()
+        ) {
+            return $this->getRedirectForRecord(
+                reset($recordList),
+                ['sid' => $results->getSearchId()]
+            );
         }
 
-        // If we got this far, we have a valid parameter so we should redirect
-        // and report success:
-        $details = $this->getRecordRouter()
-            ->getTabRouteDetails($recordList[$jumpto - 1]);
-        return $this->redirect()->toRoute($details['route'], $details['params']);
+        return false;
+    }
+
+    /**
+     * Get a redirection response to a single record
+     *
+     * @param \VuFind\RecordDriver\AbstractBase $record      Record driver
+     * @param array                             $queryParams Any query parameters
+     *
+     * @return ViewModel
+     */
+    protected function getRedirectForRecord(
+        \VuFind\RecordDriver\AbstractBase $record,
+        array $queryParams = []
+    ): HttpResponse {
+        $details = $this->getRecordRouter()->getTabRouteDetails($record);
+        return $this->redirect()->toRoute(
+            $details['route'],
+            $details['params'],
+            ['query' => $queryParams]
+        );
     }
 
     /**
@@ -460,7 +516,7 @@ class AbstractSearch extends AbstractBase
      *
      * @param int $searchId Primary key value
      *
-     * @return \VuFind\Db\Row\Search
+     * @return ?\VuFind\Db\Row\Search
      */
     protected function retrieveSearchSecurely($searchId)
     {
@@ -484,7 +540,7 @@ class AbstractSearch extends AbstractBase
         $sessId = $this->serviceLocator->get(SessionManager::class)->getId();
         $history = $this->getTable('Search');
         $history->saveSearch(
-            $this->getResultsManager(),
+            $this->serviceLocator->get(\VuFind\Search\SearchNormalizer::class),
             $results,
             $sessId,
             $user->id ?? null
@@ -573,7 +629,7 @@ class AbstractSearch extends AbstractBase
             $parts[] = [
                 'field' => $field,
                 'type' => $type,
-                'values' => [$from, $to]
+                'values' => [$from, $to],
             ];
         }
 
