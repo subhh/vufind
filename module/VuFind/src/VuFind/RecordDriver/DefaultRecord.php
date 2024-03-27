@@ -1236,7 +1236,14 @@ class DefaultRecord extends AbstractBase
      */
     public function getSubtitle()
     {
-        return $this->fields['title_sub'] ?? '';
+        if (array_key_exists('title_sub', $this->fields)) {
+            if (is_array($this->fields['title_sub'])) {
+                $subtitle = $this->fields['title_sub'][0];
+            } else {
+                $subtitle = $this->fields['title_sub'];
+            }
+        }
+        return $subtitle ?? '';
     }
 
     /**

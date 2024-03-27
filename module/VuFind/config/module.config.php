@@ -454,6 +454,7 @@ $config = [
             'VuFind\QRCode\Loader' => 'VuFind\QRCode\LoaderFactory',
             'VuFind\Recommend\PluginManager' => 'VuFind\ServiceManager\AbstractPluginManagerFactory',
             'VuFind\Record\Cache' => 'VuFind\Record\CacheFactory',
+            'VuFind\Record\Cache\Strategy' => 'VuFind\Record\Cache\RecordCacheDbStrategyFactory',
             'VuFind\Record\FallbackLoader\PluginManager' => 'VuFind\ServiceManager\AbstractPluginManagerFactory',
             'VuFind\Record\Loader' => 'VuFind\Record\LoaderFactory',
             'VuFind\Record\Router' => 'VuFind\Service\ServiceWithConfigIniFactory',
