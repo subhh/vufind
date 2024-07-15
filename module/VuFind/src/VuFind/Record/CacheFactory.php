@@ -68,11 +68,16 @@ class CacheFactory implements FactoryInterface
         if (!empty($options)) {
             throw new \Exception('Unexpected options passed to factory.');
         }
-
+        $memcache = new \Memcached();
+        $memcache->addServer('localhost', 11211);
         return new $requestedName(
             $container->get(\VuFind\RecordDriver\PluginManager::class),
             $container->get(\VuFind\Config\PluginManager::class)->get('RecordCache'),
-            $container->get('VuFind\Record\Cache\Strategy')
+            new Cache\MemcachedAdapter($memcache)
+            // new Cache\BlackholeAdapter()
+            // new Cache\DatabaseAdapter(
+            //     $container->get(\VuFind\Db\Table\PluginManager::class)->get('Record')
+            // )
         );
     }
 }
